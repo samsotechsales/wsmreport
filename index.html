@@ -696,26 +696,26 @@ body {
         <div class="select-wrap">
           <select class="field-select" id="se-select">
             <option value="">— Select Sales Engineer —</option>
-            <option>Shahbaz</option>
-            <option>Pablo</option>
-            <option>Nidhin</option>
-            <option>Shijith</option>
-            <option>Imtishal</option>
-            <option>Maitreyee</option>
-            <option>Rodjard</option>
-            <option>Burhannudin</option>
-            <option>Himani</option>
-            <option>Ruchita</option>
-            <option>Shahzaman</option>
             <option>Advith</option>
-            <option>Vishnu</option>
-            <option>Pratibha</option>
+            <option>Burhannudin</option>
             <option>Don</option>
+            <option>Himani</option>
+            <option>Imtishal</option>
             <option>Lidiya</option>
+            <option>Maitreyee</option>
             <option>Mubeen</option>
             <option>Mustafa</option>
+            <option>Nidhin</option>
+            <option>Pablo</option>
             <option>Prajwal</option>
+            <option>Pratibha</option>
             <option>Risheka</option>
+            <option>Rodjard</option>
+            <option>Ruchita</option>
+            <option>Shahbaz</option>
+            <option>Shahzaman</option>
+            <option>Shijith</option>
+            <option>Vishnu</option>
           </select>
         </div>
 
@@ -944,7 +944,7 @@ body {
         <div class="th c">Leads</div>
         <div class="th c">Meetings</div>
         <div class="th">Booking (AED)</div>
-        <div class="th">Submitted</div>
+        <div class="th">Submitted At</div>
         <div class="th">Status</div>
       </div>
       <div id="sub-body"></div>
@@ -1038,9 +1038,9 @@ const CHARGES = [
   {code:'OHIP',  name:'OHIP Charges (Just input OHIP charges from main order)',  chargeOnly:true},
   {code:'CLOUD', name:'Cloud Charges (Just input cloud charges from main order)', chargeOnly:true},
 ];
-const ALL_SE = ['Shahbaz','Pablo','Nidhin','Shijith','Imtishal','Maitreyee','Rodjard',
-  'Burhannudin','Himani','Ruchita','Shahzaman','Advith','Vishnu','Pratibha',
-  'Don','Lidiya','Mubeen','Mustafa','Prajwal','Risheka'];
+const ALL_SE = ['Advith','Burhannudin','Don','Himani','Imtishal','Lidiya','Maitreyee',
+  'Mubeen','Mustafa','Nidhin','Pablo','Prajwal','Pratibha','Risheka',
+  'Rodjard','Ruchita','Shahbaz','Shahzaman','Shijith','Vishnu'];
 const COUNTRIES = ['','United Arab Emirates (UAE)','Saudi Arabia','Qatar','Bahrain','Kuwait','Oman',
   'India','Egypt','Jordan','Thailand','Indonesia','Philippines','Malaysia','Singapore',
   'United Kingdom (UK)','United States of America (USA)','Germany','France','Spain',
@@ -1989,27 +1989,39 @@ function renderKPIsFromSheet(data) {
 function renderSubTableFromSheet(data) {
   const body = document.getElementById('sub-body');
   body.innerHTML = '';
-  const subs    = data.submitted || [];
+  const subs    = data.submitted || []; // already sorted latest first by Apps Script
   const pending = data.pending   || [];
 
-  subs.forEach(s => {
+  // Submitted — latest first
+  subs.forEach((s, idx) => {
+    const rank = idx + 1;
     body.innerHTML += `<div class="sub-row">
       <div class="se-name">${s.name}</div>
       <div class="sc">${s.leads}</div>
       <div class="sc">${s.meetings}</div>
       <div class="s-aed">AED ${(s.booking||0).toLocaleString()}</div>
-      <div class="s-date" style="color:var(--success);font-size:12px;font-weight:500;">✓ Submitted</div>
-      <div><span class="pill pill-ok">Submitted</span></div></div>`;
+      <div class="s-date" style="color:var(--text2);font-size:12px;">${s.submittedAt || '—'}</div>
+      <div><span class="pill pill-ok">✓ Submitted</span></div>
+    </div>`;
   });
 
+  // Divider between submitted and pending (only if both exist)
+  if (subs.length > 0 && pending.length > 0) {
+    body.innerHTML += `<div style="padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.07em;text-transform:uppercase;">
+      Pending — ${pending.length} not yet submitted
+    </div>`;
+  }
+
+  // Pending — alphabetical (already sorted from Staff_Master)
   pending.forEach(name => {
     body.innerHTML += `<div class="sub-row">
-      <div class="se-name">${name}</div>
+      <div class="se-name" style="color:var(--text2);">${name}</div>
       <div class="sc" style="color:var(--text3)">—</div>
       <div class="sc" style="color:var(--text3)">—</div>
       <div class="s-aed" style="color:var(--text3)">—</div>
-      <div class="s-date" style="color:var(--text3)">Not yet</div>
-      <div><span class="pill pill-pending">Pending</span></div></div>`;
+      <div class="s-date" style="color:var(--text3)">Not yet submitted</div>
+      <div><span class="pill pill-pending">Pending</span></div>
+    </div>`;
   });
 
   if (!subs.length && !pending.length) {
@@ -2059,25 +2071,41 @@ function renderKPIs() {
 }
 function renderSubTable() {
   const subs = getThisWeekSubs();
-  const submitted = subs.map(s=>s.name);
+  const submittedNames = subs.map(s=>s.name);
   const body = document.getElementById('sub-body');
   body.innerHTML='';
-  subs.forEach(s=>{
+
+  // Sort submitted — latest first by submittedAt
+  const sortedSubs = [...subs].sort((a,b) => {
+    if (!a.submittedAt && !b.submittedAt) return 0;
+    if (!a.submittedAt) return 1;
+    if (!b.submittedAt) return -1;
+    return b.submittedAt.localeCompare(a.submittedAt);
+  });
+
+  sortedSubs.forEach(s=>{
     let l=0,m=0,b=0;
     Object.values(s.products||{}).forEach(p=>{l+=p.leads||0;m+=p.meetings||0;b+=p.booking||0;});
     body.innerHTML+=`<div class="sub-row">
       <div class="se-name">${s.name}</div>
       <div class="sc">${l}</div><div class="sc">${m}</div>
       <div class="s-aed">AED ${b.toLocaleString()}</div>
-      <div class="s-date" style="color:var(--success);font-size:12px;">✓ Submitted</div>
-      <div><span class="pill pill-ok">Submitted</span></div></div>`;
+      <div class="s-date" style="color:var(--text2);font-size:12px;">${s.submittedAt||'—'}</div>
+      <div><span class="pill pill-ok">✓ Submitted</span></div></div>`;
   });
-  ALL_SE.filter(n=>!submitted.includes(n)).forEach(n=>{
+
+  const pending = ALL_SE.filter(n=>!submittedNames.includes(n));
+  if (sortedSubs.length > 0 && pending.length > 0) {
+    body.innerHTML += `<div style="padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.07em;text-transform:uppercase;">
+      Pending — ${pending.length} not yet submitted
+    </div>`;
+  }
+  pending.forEach(n=>{
     body.innerHTML+=`<div class="sub-row">
-      <div class="se-name">${n}</div>
+      <div class="se-name" style="color:var(--text2);">${n}</div>
       <div class="sc" style="color:var(--text3)">—</div><div class="sc" style="color:var(--text3)">—</div>
       <div class="s-aed" style="color:var(--text3)">—</div>
-      <div class="s-date" style="color:var(--text3)">Not yet</div>
+      <div class="s-date" style="color:var(--text3)">Not yet submitted</div>
       <div><span class="pill pill-pending">Pending</span></div></div>`;
   });
   if (!body.innerHTML) body.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div>No submissions yet for this week.</div></div>';
