@@ -1,2 +1,2 @@
 # sales-report
-Samsotech Weekly Sales Report Tool
+Samsotech Weekly Sales and marketing Report Tool
