@@ -1741,9 +1741,11 @@ function updateNavPill() {
 }
 // ── FETCH SUBMITTED WEEK DATA FROM GOOGLE SHEET ──
 async function fetchSubmissionFromSheet(w) {
+  console.log('fetchSubmissionFromSheet called, w=', w ? w.friday : 'null', 'url=', getWebAppUrl() ? 'SET' : 'EMPTY');
   if (!getWebAppUrl()) return;
 
   const reportDate = w.friday;
+  console.log('reportDate=', reportDate, 'user=', user);
   if (!reportDate) return;
 
   const header = document.querySelector('#wizard-step-1 .page-desc');
@@ -1848,6 +1850,7 @@ async function fetchSubmissionFromSheet(w) {
     if (header) header.textContent = origDesc;
 
   } catch(err) {
+    console.error('fetchSubmissionFromSheet ERROR:', err);
     if (header) {
       header.textContent = '⚠️ Could not reach server. Showing local data.';
       setTimeout(() => { if (header) header.textContent = origDesc; }, 3000);
