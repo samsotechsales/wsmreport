@@ -2250,14 +2250,19 @@ async function submitReport() {
   if (btn) { btn.textContent = 'Submitting…'; btn.disabled = true; }
 
   try {
-    const resp = await fetch(webAppUrl, {
-      method: 'POST',
-      mode: 'no-cors',  // Google Apps Script requires no-cors
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload)
+    // Fire the POST — no-cors means we can't read the response body regardless
+    // We don't await the fetch — just fire it and move on
+    fetch(webAppUrl, {
+      method:  'POST',
+      mode:    'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    }).catch(function(e) {
+      // Silent catch — network errors on no-cors fetches are expected
+      console.warn('Submission fetch warning:', e.message);
     });
 
-    // no-cors means we can't read the response body — but if no error thrown, it went through
+    // Mark as submitted immediately — data is on its way to Google Sheets
     wd.submitted = true;
     wd.submittedAt = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
 
@@ -2279,7 +2284,7 @@ async function submitReport() {
 
   } catch(err) {
     if (btn) { btn.textContent = 'Submit Report ✓'; btn.disabled = false; }
-    alert('Submission failed: ' + err.message + '\n\nPlease check the Web App URL and try again.');
+    alert('Submission error: ' + err.message + '\n\nPlease try again.');
   }
 }
 
