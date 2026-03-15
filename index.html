@@ -1759,12 +1759,49 @@ async function fetchSubmissionFromSheet(w) {
 
     const resubmitAllowed = resubData.success && resubData.allowed;
 
+    // If resubmit is allowed, unlock the week regardless of whether submission data was found
+    if (resubmitAllowed) {
+      const wd = getWeekMem(w.key);
+      // Load existing submission data if present
+      if (subData.success && subData.found) {
+        if (subData.products && subData.products.length > 0) {
+          subData.products.forEach(p => {
+            if (wd.products[p.code] !== undefined) {
+              wd.products[p.code] = { leads: p.leads, meetings: p.meetings, booking: p.booking };
+            }
+          });
+        }
+        if (subData.meetings) {
+          wd.meetings = subData.meetings.length > 0 ? subData.meetings : wd.meetings;
+        }
+        if (subData.countryBookings && subData.countryBookings.length > 0) {
+          wd.countryBookings = subData.countryBookings;
+        }
+      }
+      // Unlock — treat as NOT submitted so form is editable
+      wd.submitted   = false;
+      wd.submittedAt = null;
+      // Save unlocked state
+      const store = load();
+      if (!store[user]) store[user] = {};
+      store[user][w.key] = wd;
+      save(store);
+      mem[w.key] = wd;
+      renderProdRows();
+      renderMeetRows();
+      renderCountryRows();
+      renderWeekRow();
+      showResubmitBanner(); // show AFTER renderProdRows to avoid being hidden
+      if (header) header.textContent = origDesc;
+      return;
+    }
+
     if (!subData.success || !subData.found) {
       if (header) header.textContent = origDesc;
       return;
     }
 
-    // Populate data
+    // Populate data for read-only view
     const wd = getWeekMem(w.key);
 
     if (subData.products && subData.products.length > 0) {
@@ -1783,16 +1820,8 @@ async function fetchSubmissionFromSheet(w) {
       wd.countryBookings = subData.countryBookings;
     }
 
-    if (resubmitAllowed) {
-      // Unlock — treat as NOT submitted so form is editable
-      wd.submitted  = false;
-      wd.submittedAt = null;
-      // Show resubmit banner
-      showResubmitBanner();
-    } else {
-      wd.submitted = true;
-      if (!wd.submittedAt) wd.submittedAt = 'from server';
-    }
+    wd.submitted = true;
+    if (!wd.submittedAt) wd.submittedAt = 'from server';
 
     // Save to localStorage
     const store = load();
@@ -1806,8 +1835,6 @@ async function fetchSubmissionFromSheet(w) {
     renderCountryRows();
     renderWeekRow();
     if (header) header.textContent = origDesc;
-
-  } catch(err) {
     if (header) {
       header.textContent = '⚠️ Could not reach server. Showing local data.';
       setTimeout(() => { if (header) header.textContent = origDesc; }, 3000);
@@ -1932,6 +1959,7 @@ function renderProdRows() {
     showSubmittedBanner(w, wd);
   } else {
     hideSubmittedBanner();
+    // If unlocked due to resubmit flag, banner is shown by fetchSubmissionFromSheet after render
   }
 }
 
