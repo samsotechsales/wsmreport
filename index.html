@@ -1708,7 +1708,11 @@ async function submitChangePin() {
   }
 }
 function logout() {
-  user = null; role = null;
+  user = null; role = null; mem = {};
+  // Clear any lingering banners
+  ['submit-success-banner','draft-banner','submitted-banner','resubmit-banner','submit-status'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.remove();
+  });
   showView('login');
 }
 function showView(v) {
@@ -2402,8 +2406,7 @@ function showSubmitSuccessBanner(w, submittedAt) {
     </div>`;
   const weekRow = document.getElementById('week-row');
   if (weekRow) weekRow.parentNode.insertBefore(banner, weekRow.nextSibling);
-  // Auto-remove after 8 seconds
-  setTimeout(() => { if (banner.parentNode) banner.remove(); }, 8000);
+  // Banner stays until logout — no auto-dismiss
 }
 function showSubmitConfirm() {
   return new Promise(resolve => {
