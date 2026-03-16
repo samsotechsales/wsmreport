@@ -1192,25 +1192,29 @@ let cachedCountryOptions = ''; // pre-built <option> string, built once on login
 // Must match SECRET_TOKEN in WebApp_Script.gs exactly
 const SECRET_TOKEN = 'SMT20268CBBC718A176F93105686A2F8C078F94';
 
-// ── WEBAPP URL — loaded from config.json on GitHub ──
+// ── WEBAPP URL — loaded from config.json on page load, localStorage as fallback ──
 let CACHED_WEBAPP_URL = '';
 async function initWebAppUrl() {
   if (CACHED_WEBAPP_URL) return;
-  // Try up to 3 times with a short delay — handles transient network blips
-  for (var attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const r = await fetch('./config.json?t=' + Date.now());
-      const d = await r.json();
-      if (d.webAppUrl) {
-        CACHED_WEBAPP_URL = d.webAppUrl;
-        return;
-      }
-    } catch(e) {
-      console.warn('config.json fetch attempt ' + attempt + ' failed:', e.message);
-      if (attempt < 3) await new Promise(res => setTimeout(res, 1000));
+  try {
+    const r = await fetch('https://samsotechsales.github.io/wsmreport/config.json?t=' + Date.now());
+    const d = await r.json();
+    if (d.webAppUrl) {
+      CACHED_WEBAPP_URL = d.webAppUrl;
+      localStorage.setItem('samso_webapp_url', d.webAppUrl);
+      return;
     }
+  } catch(e) {
+    console.warn('config.json fetch failed, trying localStorage fallback:', e.message);
   }
-  console.error('Could not load config.json after 3 attempts.');
+  // Fallback — use previously saved URL from localStorage
+  const saved = localStorage.getItem('samso_webapp_url') || '';
+  if (saved) {
+    CACHED_WEBAPP_URL = saved;
+    console.log('Using cached URL from localStorage.');
+  } else {
+    console.error('No App URL available from config.json or localStorage.');
+  }
 }
 function getWebAppUrl() { return CACHED_WEBAPP_URL; }
 // Helper — appends token to any GET request URL
@@ -3062,6 +3066,9 @@ function exportCSV() {
 
 <!-- ── PAGE INIT ── -->
 <script>
+// Start loading the App URL immediately on page load
+initWebAppUrl();
+
 (function() {
   // Hide all views first
   ['view-login','view-director-login','view-se','view-director'].forEach(function(id) {
