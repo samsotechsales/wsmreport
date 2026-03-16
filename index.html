@@ -120,6 +120,42 @@ body {
 }
 .btn-success:hover { background: #236040; color: #fff; }
 .btn-success:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-draft {
+  background: var(--info-bg);
+  border: 1px solid var(--info);
+  color: var(--info);
+  padding: 11px 24px;
+  border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-draft:hover { background: var(--info); color: #fff; }
+.btn-draft:disabled { opacity: 0.45; cursor: not-allowed; }
+.draft-toast {
+  position: fixed;
+  bottom: 28px; right: 28px;
+  background: var(--info);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+}
+.draft-toast.show { opacity: 1; transform: translateY(0); }
+.week-chip.draft .wlabel::after {
+  content: ' ✎';
+  font-size: 11px;
+  color: var(--info);
+}
 
 /* ── VIEWS ── */
 .view { display:none; visibility:hidden; height:0; overflow:hidden; }
@@ -779,10 +815,6 @@ body {
       <div id="dir-pin-err" style="font-size:12px;color:var(--danger);margin-top:4px;display:none;text-align:center;">
         Incorrect PIN. Please try again.
       </div>
-      <div style="margin-top:12px;font-size:11px;color:var(--text3);text-align:center;">
-        First time setup?
-        <a href="#" style="color:var(--info);text-decoration:none;" onclick="enableSetupMode();return false;">Enter setup mode</a>
-      </div>
     </div>
   </div>
 </div>
@@ -799,6 +831,7 @@ body {
     <div id="week-pill-nav" class="week-pill">Week —</div>
     <div class="nav-right">
       <span class="nav-user" id="nav-user-label">—</span>
+      <button class="btn" style="font-size:12px;color:var(--info);border-color:var(--info);" onclick="saveDraft()">💾 Save Draft</button>
       <button class="btn" style="font-size:12px;" onclick="toggleChangePinPanel()">🔑 Change PIN</button>
       <button class="btn" onclick="logout()">Sign out</button>
     </div>
@@ -874,9 +907,12 @@ body {
 
       <div class="wizard-footer">
         <div></div>
-        <button class="btn btn-primary" style="padding:11px 32px;font-size:14px;" onclick="wizardGoTo(2)">
-          Next: Meeting Log →
-        </button>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-draft" onclick="saveDraft()">💾 Save Draft</button>
+          <button class="btn btn-primary" style="padding:11px 32px;font-size:14px;" onclick="wizardGoTo(2)">
+            Next: Meeting Log →
+          </button>
+        </div>
       </div>
     </div>
 
@@ -907,9 +943,12 @@ body {
 
       <div class="wizard-footer">
         <button class="btn" style="padding:11px 24px;font-size:14px;" onclick="wizardGoTo(1)">← Back</button>
-        <button class="btn btn-primary" style="padding:11px 32px;font-size:14px;" onclick="wizardGoTo(3)">
-          Next: Country Booking →
-        </button>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-draft" onclick="saveDraft()">💾 Save Draft</button>
+          <button class="btn btn-primary" style="padding:11px 32px;font-size:14px;" onclick="wizardGoTo(3)">
+            Next: Country Booking →
+          </button>
+        </div>
       </div>
     </div>
 
@@ -931,10 +970,13 @@ body {
         <button class="add-row" onclick="addCountryRow()">＋ Add country</button>
       </div>
 
-      <!-- Step 3 footer: Back + Submit -->
+      <!-- Step 3 footer: Back + Draft + Submit -->
       <div class="wizard-footer" id="submit-area">
         <button class="btn" style="padding:11px 24px;font-size:14px;" onclick="wizardGoTo(2)">← Back</button>
-        <button class="btn btn-success" onclick="submitReport()">Submit Report ✓</button>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-draft" onclick="saveDraft()">💾 Save Draft</button>
+          <button class="btn btn-success" onclick="submitReport()">Submit Report ✓</button>
+        </div>
       </div>
     </div>
 
@@ -1064,10 +1106,11 @@ body {
         <div id="settings-content" style="display:none;">
           <div class="config-box" style="max-width:600px;">
             <strong>⚙️ Google Apps Script Web App URL</strong>
-            <div style="font-size:12px;margin-bottom:8px;">This URL connects the submission tool to your Google Sheet. Keep it confidential.</div>
+            <div style="font-size:12px;margin-bottom:8px;">This URL is loaded automatically from <code>config.json</code> in the GitHub repository. To update it, edit the config.json file in the repo.</div>
             <input type="url" class="config-input" id="webapp-url"
-              placeholder="https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"
-              oninput="saveWebAppUrl(this.value)">
+              placeholder="Loading from config.json…"
+              readonly
+              style="background:var(--bg2);color:var(--text2);cursor:default;">
             <div style="margin-top:8px;font-size:12px;color:var(--success);font-weight:500;" id="url-status"></div>
           </div>
           <div class="config-box" style="max-width:600px;margin-top:12px;">
@@ -1141,10 +1184,19 @@ let cachedCountryOptions = ''; // pre-built <option> string, built once on login
 // Must match SECRET_TOKEN in WebApp_Script.gs exactly
 const SECRET_TOKEN = 'SMT20268CBBC718A176F93105686A2F8C078F94';
 
-// ── WEBAPP URL ──
-function getWebAppUrl() {
-  return localStorage.getItem('samso_webapp_url') || '';
+// ── WEBAPP URL — loaded from config.json on GitHub ──
+let CACHED_WEBAPP_URL = '';
+async function initWebAppUrl() {
+  if (CACHED_WEBAPP_URL) return;
+  try {
+    const r = await fetch('https://samsotechsales.github.io/wsmreport/config.json?t=' + Date.now());
+    const d = await r.json();
+    CACHED_WEBAPP_URL = d.webAppUrl || '';
+  } catch(e) {
+    console.error('Could not load config.json:', e);
+  }
 }
+function getWebAppUrl() { return CACHED_WEBAPP_URL; }
 // Helper — appends token to any GET request URL
 function apiUrl(action, params) {
   const base = getWebAppUrl();
@@ -1152,11 +1204,6 @@ function apiUrl(action, params) {
   let url = `${base}?token=${encodeURIComponent(SECRET_TOKEN)}&action=${action}`;
   if (params) url += '&' + params;
   return url;
-}
-function saveWebAppUrl(v) {
-  localStorage.setItem('samso_webapp_url', v.trim());
-  const st = document.getElementById('url-status');
-  if (st) st.textContent = v.trim() ? '✓ URL saved successfully' : '';
 }
 
 // ── RESUBMIT FLOW ──
@@ -1306,12 +1353,12 @@ function toggleSettings() {
 async function verifyPin() {
   const entered = document.getElementById('settings-pin-input').value.trim();
   if (!entered) return;
+
+  await initWebAppUrl();
+
   if (!getWebAppUrl()) {
-    // No server URL yet — fall back to allowing access so URL can be set
-    document.getElementById('settings-pin-gate').style.display = 'none';
-    document.getElementById('settings-content').style.display  = 'block';
-    const urlEl = document.getElementById('webapp-url');
-    if (urlEl) urlEl.value = getWebAppUrl();
+    document.getElementById('pin-error').textContent = 'Server configuration unavailable.';
+    document.getElementById('pin-error').style.display = 'block';
     return;
   }
   try {
@@ -1321,11 +1368,10 @@ async function verifyPin() {
       document.getElementById('settings-pin-gate').style.display = 'none';
       document.getElementById('settings-content').style.display  = 'block';
       const urlEl = document.getElementById('webapp-url');
-      const saved = getWebAppUrl();
       if (urlEl) {
-        urlEl.value = saved;
+        urlEl.value = getWebAppUrl();
         const st = document.getElementById('url-status');
-        if (st) st.textContent = saved ? '✓ URL saved successfully' : '';
+        if (st) st.textContent = '✓ Loaded from config.json';
       }
     } else {
       document.getElementById('pin-error').style.display = 'block';
@@ -1352,37 +1398,24 @@ async function verifyDirectorPin() {
   const enterBtn = document.querySelector('#view-director-login .btn-primary');
   if (enterBtn) { enterBtn.textContent = 'Verifying…'; enterBtn.disabled = true; }
 
-  const proceed = async () => {
-    try {
-      user = 'Abhilash'; role = 'director';
-      showView('director');
-      await initDirector();
-    } catch(e) {
-      console.error('initDirector error:', e);
-    }
-    if (enterBtn) { enterBtn.textContent = 'Enter →'; enterBtn.disabled = false; }
-  };
+  // Load config.json URL first
+  await initWebAppUrl();
 
-  // If no Web App URL set yet — bootstrap with PIN 1234
   if (!getWebAppUrl()) {
-    if (entered === '1234') {
-      await proceed();
-    } else {
-      errEl.textContent   = 'No server configured yet. Use PIN 1234 to login and set the Web App URL in Settings first.';
-      errEl.style.display = 'block';
-      document.getElementById('dir-login-pin').value = '';
-      document.getElementById('dir-login-pin').focus();
-      if (enterBtn) { enterBtn.textContent = 'Enter →'; enterBtn.disabled = false; }
-    }
+    errEl.textContent   = 'Server configuration unavailable. Please contact your administrator.';
+    errEl.style.display = 'block';
+    if (enterBtn) { enterBtn.textContent = 'Enter →'; enterBtn.disabled = false; }
     return;
   }
 
-  // Web App URL set — verify against Staff_Master
   try {
     const r    = await fetch(apiUrl("verifyPin", `name=${encodeURIComponent('Abhilash')}&pin=${encodeURIComponent(entered)}`));
     const data = JSON.parse(await r.text());
     if (data.success && data.valid) {
-      await proceed();
+      user = 'Abhilash'; role = 'director';
+      showView('director');
+      await initDirector();
+      if (enterBtn) { enterBtn.textContent = 'Enter →'; enterBtn.disabled = false; }
     } else {
       errEl.textContent   = 'Incorrect PIN. Please try again.';
       errEl.style.display = 'block';
@@ -1431,15 +1464,6 @@ async function changeDirectorPin() {
   }
 }
 
-function enableSetupMode() {
-  // Clear stored URL so setup can proceed
-  localStorage.removeItem('samso_webapp_url');
-  // Auto-login immediately — no PIN needed for setup
-  user = 'Abhilash'; role = 'director';
-  showView('director');
-  initDirector();
-}
-
 // ── WEEK HELPERS ──
 function buildWeeks() {
   const today = new Date();
@@ -1485,20 +1509,16 @@ function getCurrentWeekIdx() {
 }
 
 // ── SESSION DATA ──
-const STORE = 'samso_v3';
-function load() { try { return JSON.parse(localStorage.getItem(STORE))||{}; } catch { return {}; } }
-function save(d) { localStorage.setItem(STORE, JSON.stringify(d)); }
+// ── SESSION MEMORY — all state lives in mem[] for the duration of the session ──
+// No localStorage used; Google Sheets is the single source of truth.
+function load() { return {}; }
+function save(d) { /* no-op — state stored server-side in Google Sheets */ }
 
 function getWeekMem(key) {
   if (!mem[key]) {
-    const store = load();
-    if (store[user] && store[user][key]) {
-      mem[key] = store[user][key];
-    } else {
-      const prods = {};
-      [...PRODUCTS,...CHARGES].forEach(p => prods[p.code]={leads:0,meetings:0,booking:0});
-      mem[key] = {products:prods, meetings:[], countryBookings:[], submitted:false};
-    }
+    const prods = {};
+    [...PRODUCTS, ...CHARGES].forEach(p => prods[p.code] = { leads: 0, meetings: 0, booking: 0 });
+    mem[key] = { products: prods, meetings: [], countryBookings: [], submitted: false, isDraft: false };
   }
   return mem[key];
 }
@@ -1516,8 +1536,8 @@ function showSEPin() {
   document.getElementById('se-pin-loading').style.display = 'block';
   document.getElementById('se-pin-err').style.display    = 'none';
   document.getElementById('se-login-pin').value = '';
-  // Check server first, then show correct form
-  checkSEPinExists(name);
+  // Load config.json URL first, then check server
+  initWebAppUrl().then(() => checkSEPinExists(name));
 }
 async function checkSEPinExists(name) {
   if (!getWebAppUrl()) {
@@ -1752,24 +1772,27 @@ async function fetchSubmissionFromSheet(w) {
   if (header) header.textContent = '⏳ Loading data from server…';
 
   try {
-    // Fetch submission data and resubmit flag in parallel
-    const [subResp, resubResp] = await Promise.all([
+    // Fetch submission, resubmit flag, and draft in parallel
+    const [subResp, resubResp, draftResp] = await Promise.all([
       fetch(apiUrl("getSubmission",  `name=${encodeURIComponent(user)}&reportDate=${encodeURIComponent(reportDate)}`)),
-      fetch(apiUrl("checkResubmit", `name=${encodeURIComponent(user)}&reportDate=${encodeURIComponent(reportDate)}`))
+      fetch(apiUrl("checkResubmit", `name=${encodeURIComponent(user)}&reportDate=${encodeURIComponent(reportDate)}`)),
+      fetch(apiUrl("getDraft",      `name=${encodeURIComponent(user)}&reportDate=${encodeURIComponent(reportDate)}`))
     ]);
 
     const subText   = await subResp.text();
     const resubText = await resubResp.text();
-    let subData, resubData;
+    const draftText = await draftResp.text();
+    let subData, resubData, draftData;
 
     try { subData   = JSON.parse(subText);   } catch(e) { if (header) header.textContent = origDesc; return; }
     try { resubData = JSON.parse(resubText);  } catch(e) { resubData = { success: false, allowed: false }; }
+    try { draftData = JSON.parse(draftText);  } catch(e) { draftData = { success: false, found: false }; }
 
     const resubmitAllowed = resubData.success && resubData.allowed;
 
+    // ── Resubmit flow (priority) ──
     if (resubmitAllowed) {
       const wd = getWeekMem(w.key);
-      // Load existing submission data if present
       if (subData.success && subData.found) {
         if (subData.products && subData.products.length > 0) {
           subData.products.forEach(p => {
@@ -1785,62 +1808,77 @@ async function fetchSubmissionFromSheet(w) {
           wd.countryBookings = subData.countryBookings;
         }
       }
-      // Unlock — treat as NOT submitted so form is editable
       wd.submitted   = false;
       wd.submittedAt = null;
-      // Save unlocked state
-      const store = load();
-      if (!store[user]) store[user] = {};
-      store[user][w.key] = wd;
-      save(store);
+      wd.isDraft     = false;
       mem[w.key] = wd;
       renderProdRows();
       renderMeetRows();
       renderCountryRows();
       renderWeekRow();
-      showResubmitBanner(); // show AFTER renderProdRows to avoid being hidden
+      showResubmitBanner();
       if (header) header.textContent = origDesc;
       return;
     }
 
-    if (!subData.success || !subData.found) {
+    // ── Final submission found — load read-only ──
+    if (subData.success && subData.found) {
+      const wd = getWeekMem(w.key);
+      if (subData.products && subData.products.length > 0) {
+        subData.products.forEach(p => {
+          if (wd.products[p.code] !== undefined) {
+            wd.products[p.code] = { leads: p.leads, meetings: p.meetings, booking: p.booking };
+          }
+        });
+      }
+      if (subData.meetings) {
+        wd.meetings = subData.meetings.length > 0 ? subData.meetings : wd.meetings;
+      }
+      if (subData.countryBookings && subData.countryBookings.length > 0) {
+        wd.countryBookings = subData.countryBookings;
+      }
+      wd.submitted = true;
+      wd.isDraft   = false;
+      if (!wd.submittedAt) wd.submittedAt = 'from server';
+      mem[w.key] = wd;
+      renderProdRows();
+      renderMeetRows();
+      renderCountryRows();
+      renderWeekRow();
       if (header) header.textContent = origDesc;
       return;
     }
 
-    // Populate data for read-only view
-    const wd = getWeekMem(w.key);
-
-    if (subData.products && subData.products.length > 0) {
-      subData.products.forEach(p => {
-        if (wd.products[p.code] !== undefined) {
-          wd.products[p.code] = { leads: p.leads, meetings: p.meetings, booking: p.booking };
-        }
-      });
+    // ── No final submission — restore draft if available ──
+    if (draftData.success && draftData.found) {
+      const wd = getWeekMem(w.key);
+      if (draftData.products && draftData.products.length > 0) {
+        draftData.products.forEach(p => {
+          if (wd.products[p.code] !== undefined) {
+            wd.products[p.code] = { leads: p.leads, meetings: p.meetings, booking: p.booking };
+          }
+        });
+      }
+      if (draftData.meetings && draftData.meetings.length > 0) {
+        wd.meetings = draftData.meetings;
+      }
+      if (draftData.countryBookings && draftData.countryBookings.length > 0) {
+        wd.countryBookings = draftData.countryBookings;
+      }
+      wd.submitted    = false;
+      wd.isDraft      = true;
+      wd.draftSavedAt = draftData.savedAt || '';
+      mem[w.key] = wd;
+      renderProdRows();
+      renderMeetRows();
+      renderCountryRows();
+      renderWeekRow();
+      showDraftBanner(w, draftData.savedAt || '');
+      if (header) header.textContent = origDesc;
+      return;
     }
 
-    if (subData.meetings) {
-      wd.meetings = subData.meetings.length > 0 ? subData.meetings : wd.meetings;
-    }
-
-    if (subData.countryBookings && subData.countryBookings.length > 0) {
-      wd.countryBookings = subData.countryBookings;
-    }
-
-    wd.submitted = true;
-    if (!wd.submittedAt) wd.submittedAt = 'from server';
-
-    // Save to localStorage
-    const store = load();
-    if (!store[user]) store[user] = {};
-    store[user][w.key] = wd;
-    save(store);
-    mem[w.key] = wd;
-
-    renderProdRows();
-    renderMeetRows();
-    renderCountryRows();
-    renderWeekRow();
+    // ── Nothing found — fresh week ──
     if (header) header.textContent = origDesc;
 
   } catch(err) {
@@ -1895,7 +1933,7 @@ function renderWeekRow() {
   weeks.forEach((w,i) => {
     const wd = getWeekMem(w.key);
     const btn = document.createElement('button');
-    btn.className = 'week-chip' + (i===selWeek?' active':'') + (wd.submitted?' submitted':'');
+    btn.className = 'week-chip' + (i===selWeek?' active':'') + (wd.submitted?' submitted':'') + (!wd.submitted && wd.isDraft ? ' draft' : '');
     btn.innerHTML = `<span class="wlabel">${w.label}</span><span class="wdates">${fmtDisplay(w.start)} – ${fmtDisplay(w.end)}</span>`;
     btn.onclick = () => {
       selWeek = i;
@@ -1952,12 +1990,19 @@ function renderProdRows() {
         <span class="b-icon">✓</span>
         <div><strong>${w.label} submitted</strong> — ${wd.submittedAt||''}. Read only. Contact Abhilash for corrections.</div>
       </div>`;
+    // Hide all draft buttons when submitted
+    document.querySelectorAll('.btn-draft').forEach(b => b.style.display = 'none');
     const nextBtn = document.querySelector('#wizard-step-1 .btn-primary');
     if (nextBtn) { nextBtn.textContent = 'View Meeting Log →'; nextBtn.disabled = false; nextBtn.style.opacity=''; }
   } else {
     document.getElementById('submit-area').innerHTML = `
       <button class="btn" style="padding:11px 24px;font-size:14px;" onclick="wizardGoTo(2)">← Back</button>
-      <button class="btn btn-success" onclick="submitReport()">Submit Report ✓</button>`;
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-draft" onclick="saveDraft()">💾 Save Draft</button>
+        <button class="btn btn-success" onclick="submitReport()">Submit Report ✓</button>
+      </div>`;
+    // Show all draft buttons when editable
+    document.querySelectorAll('.btn-draft').forEach(b => b.style.display = '');
     const nextBtn = document.querySelector('#wizard-step-1 .btn-primary');
     if (nextBtn) { nextBtn.textContent = 'Next: Meeting Log →'; nextBtn.disabled = false; nextBtn.style.opacity=''; }
   }
@@ -2270,14 +2315,12 @@ async function submitReport() {
     });
 
     // Mark as submitted immediately — data is on its way to Google Sheets
-    wd.submitted = true;
-    wd.submittedAt = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    wd.submitted    = true;
+    wd.isDraft      = false;
+    wd.draftSavedAt = null;
+    wd.submittedAt  = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
 
-    // Persist locally
-    const store = load();
-    if (!store[user]) store[user]={};
-    store[user][w.key] = {...wd, friday:w.friday};
-    save(store);
+    // Keep in session memory
     mem[w.key] = wd;
 
     renderWeekRow();
@@ -2301,6 +2344,116 @@ function fmtMeetingDate(d) {
   const parts = d.split('-');
   if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
   return d;
+}
+
+// ── DRAFT SAVE ──
+async function saveDraft() {
+  const w  = weeks[selWeek];
+  const wd = getWeekMem(w.key);
+
+  if (wd.submitted) return; // never draft-save a submitted week
+
+  if (!getWebAppUrl()) {
+    alert('⚠️ Server configuration unavailable. Cannot save draft.');
+    return;
+  }
+
+  // Disable all draft buttons while saving
+  document.querySelectorAll('.btn-draft').forEach(b => {
+    b.disabled = true; b.textContent = '💾 Saving…';
+  });
+
+  const payload = {
+    token:        SECRET_TOKEN,
+    reportDate:   w.friday,
+    weekLabel:    w.label,
+    officerName:  user,
+    isDraft:      true,
+    products: [...PRODUCTS, ...CHARGES].map(p => ({
+      code:     p.code,
+      name:     p.name,
+      leads:    wd.products[p.code]?.leads    || 0,
+      meetings: wd.products[p.code]?.meetings || 0,
+      booking:  wd.products[p.code]?.booking  || 0,
+    })),
+    meetings: (wd.meetings || []).filter(m => m.hotel || m.contact || m.country).map(m => ({
+      meetingDate:  m.meetingDate ? fmtMeetingDate(m.meetingDate) : '',
+      hotel:        m.hotel        || '',
+      contact:      m.contact      || '',
+      designation:  m.designation  || '',
+      country:      m.country      || '',
+      type:         m.type         || 'Onsite',
+    })),
+    countryBookings: (wd.countryBookings || [])
+      .filter(cb => cb.country && cb.country.trim())
+      .map(cb => ({ country: cb.country.trim(), booking: cb.booking || 0 }))
+  };
+
+  try {
+    await fetch(getWebAppUrl(), {
+      method:  'POST',
+      mode:    'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    });
+  } catch(e) {
+    console.warn('Draft save warning:', e.message);
+  }
+
+  // Re-enable buttons and show toast
+  const nowStr = new Date().toLocaleString('en-GB', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.btn-draft').forEach(b => {
+      b.disabled = false; b.textContent = '💾 Save Draft';
+    });
+    showDraftToast(w.label, nowStr);
+    // Mark draft in memory so chip updates
+    wd.isDraft = true;
+    wd.draftSavedAt = nowStr;
+    renderWeekRow();
+  }, 600);
+}
+
+function showDraftToast(weekLabel, savedAt) {
+  const toast = document.getElementById('draft-toast');
+  if (!toast) return;
+  toast.textContent = `💾 Draft saved — ${weekLabel} · ${savedAt}`;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+function showDraftBanner(w, savedAt) {
+  hideDraftBanner();
+  hideSubmittedBanner();
+  hideResubmitBanner();
+  const banner = document.createElement('div');
+  banner.id = 'draft-banner';
+  banner.style.cssText = `
+    margin-bottom:16px;
+    background:var(--info-bg);
+    border:1px solid var(--info);
+    border-radius:var(--radius);
+    padding:12px 16px;
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    font-size:13px;
+  `;
+  banner.innerHTML = `<span style="font-size:16px;flex-shrink:0;">💾</span>
+    <div>
+      <strong style="color:var(--info);">Draft restored — ${w.label}</strong>
+      ${savedAt ? `<span style="color:var(--text2);"> · Last saved ${savedAt}</span>` : ''}
+      <div style="color:var(--text2);margin-top:2px;">Your work in progress has been loaded. Continue editing and submit when ready.</div>
+    </div>`;
+  const weekRow = document.getElementById('week-row');
+  weekRow.parentNode.insertBefore(banner, weekRow.nextSibling);
+}
+
+function hideDraftBanner() {
+  const b = document.getElementById('draft-banner');
+  if (b) b.remove();
 }
 
 // ── AI: PRODUCT FILL ──
@@ -2618,7 +2771,7 @@ function refreshDirDashboard() {
   fetchTeamStatus(w);
 }
 
-// ── Fallback localStorage versions (used if no URL or fetch fails) ──
+// ── Director fallback versions (used if sheet fetch fails) ──
 function getAllSubs() {
   const store = load();
   const subs = [];
@@ -2770,6 +2923,9 @@ function exportCSV() {
 
 // ── INIT ──
 </script>
+<!-- ── DRAFT TOAST ── -->
+<div class="draft-toast" id="draft-toast">💾 Draft saved</div>
+
 <!-- ── PAGE INIT ── -->
 <script>
 (function() {
