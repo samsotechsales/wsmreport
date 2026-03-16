@@ -2317,10 +2317,10 @@ async function submitReport() {
     }))
   };
 
-  // Show inline submitting state
+  // Show inline submitting state with animated progress steps
   const btn = document.querySelector('.btn-success');
   if (btn) { btn.textContent = '⏳ Submitting…'; btn.disabled = true; }
-  showSubmitStatus('loading', `⏳ Submitting ${w.label} report… please wait.`);
+  startSubmitProgress(w.label);
 
   try {
     const resp = await fetch(webAppUrl, {
@@ -2334,6 +2334,8 @@ async function submitReport() {
     } catch(e) {
       data = resp.ok ? { success: true } : { success: false, error: 'Server returned unexpected response.' };
     }
+
+    stopSubmitProgress();
 
     if (!data.success) {
       if (btn) { btn.textContent = 'Submit Report ✓'; btn.disabled = false; }
@@ -2359,6 +2361,7 @@ async function submitReport() {
     showSubmitSuccessBanner(w, wd.submittedAt);
 
   } catch(err) {
+    stopSubmitProgress();
     if (btn) { btn.textContent = 'Submit Report ✓'; btn.disabled = false; }
     showSubmitStatus('error', '⚠️ Could not reach server. Please check your connection and try again.');
   }
@@ -2381,6 +2384,42 @@ function showSubmitStatus(type, msg) {
 function hideSubmitStatus() {
   const el = document.getElementById('submit-status');
   if (el) el.remove();
+}
+
+// ── Animated submit progress ──
+let _progressTimer = null;
+const PROGRESS_STEPS = [
+  { delay: 0,    msg: '⏳ Connecting to server…' },
+  { delay: 2000, msg: '⏳ Saving product activity…' },
+  { delay: 4500, msg: '⏳ Saving meeting log…' },
+  { delay: 6500, msg: '⏳ Saving country bookings…' },
+  { delay: 8500, msg: '⏳ Wrapping up… almost done!' },
+];
+function startSubmitProgress(weekLabel) {
+  hideSubmitStatus();
+  // Create the status element with a message area
+  const el = document.createElement('div');
+  el.id = 'submit-status';
+  el.style.cssText = 'margin-bottom:16px;padding:12px 16px;border-radius:var(--radius);border:1px solid var(--info);background:var(--info-bg);color:var(--info);font-size:13px;font-weight:500;display:flex;align-items:center;gap:10px;';
+  el.innerHTML = `<span id="submit-progress-msg">⏳ Connecting to server…</span>`;
+  const weekRow = document.getElementById('week-row');
+  if (weekRow) weekRow.parentNode.insertBefore(el, weekRow.nextSibling);
+
+  // Schedule each step
+  _progressTimer = [];
+  PROGRESS_STEPS.forEach(step => {
+    const t = setTimeout(() => {
+      const msgEl = document.getElementById('submit-progress-msg');
+      if (msgEl) msgEl.textContent = step.msg;
+    }, step.delay);
+    _progressTimer.push(t);
+  });
+}
+function stopSubmitProgress() {
+  if (_progressTimer) {
+    _progressTimer.forEach(t => clearTimeout(t));
+    _progressTimer = null;
+  }
 }
 function showSubmitSuccessBanner(w, submittedAt) {
   hideSubmitStatus();
