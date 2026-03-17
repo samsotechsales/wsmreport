@@ -324,6 +324,35 @@ body {
 .week-chip.submitted .wlabel::after { content: ' ✓'; }
 .week-chip:hover:not(.active) { border-color: var(--border2); background: var(--bg2); color: var(--text); }
 
+/* ── MONTH/YEAR FILTER ROW ── */
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.filter-select {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+  outline: none;
+}
+.filter-select:focus { border-color: var(--accent); }
+
 /* ── AI BAR ── */
 .ai-bar {
   background: var(--surface);
@@ -860,6 +889,14 @@ body {
 
   <div class="layout">
 
+    <!-- ── MONTH / YEAR SELECTOR ── -->
+    <div class="filter-row" id="se-filter-row">
+      <span class="filter-label">Month</span>
+      <select class="filter-select" id="se-sel-month" onchange="onSEFilterChange()"></select>
+      <span class="filter-label">Year</span>
+      <select class="filter-select" id="se-sel-year" onchange="onSEFilterChange()"></select>
+    </div>
+
     <!-- ── WEEK SELECTOR — always visible above wizard ── -->
     <div class="week-row" id="week-row"></div>
 
@@ -1185,6 +1222,10 @@ const COUNTRIES = ['','United Arab Emirates (UAE)','Saudi Arabia','Qatar','Bahra
 
 // ── STATE ──
 let user = null, role = null, weeks = [], selWeek = 0;
+let selMonth = new Date().getMonth() + 1;
+let selYear  = new Date().getFullYear();
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
 let mem = {};
 let cachedCountryOptions = ''; // pre-built <option> string, built once on login
 
@@ -1486,21 +1527,20 @@ async function changeDirectorPin() {
 
 // ── WEEK HELPERS ──
 function buildWeeks() {
-  const today = new Date();
-  const y = today.getFullYear(), mo = today.getMonth();
+  // Uses selMonth / selYear — defaults to current month/year, changes on filter
+  const mo = selMonth - 1; // 0-indexed
+  const y  = selYear;
 
   // Find the Saturday on or before the 1st of the month
   let sat = new Date(y, mo, 1);
   while (sat.getDay() !== 6) sat.setDate(sat.getDate() - 1);
 
-  // Build all weeks whose SATURDAY start falls within the current month.
-  // The Friday end is allowed to spill into the next month — full week always collected.
+  // Build all weeks whose SATURDAY start falls within the selected month.
   // Always include at least 4 weeks; include a 5th if its Saturday is still in this month.
   const ws = [];
   for (let i = 0; i < 5; i++) {
     const s = new Date(sat); s.setDate(sat.getDate() + i * 7);
     const f = new Date(s);   f.setDate(s.getDate() + 6);
-    // Include if Saturday start is in current month, OR it's one of the first 4 weeks
     if (i < 4 || s.getMonth() === mo) {
       ws.push({ label:`Week ${i+1}`, start:s, end:f, key:fmt(s)+'_'+fmt(f), friday:fmtFull(f) });
     }
@@ -1522,10 +1562,49 @@ function fmtDisplay(d) {
 }
 function getCurrentWeekIdx() {
   const today = new Date();
-  for (let i=0;i<weeks.length;i++) {
-    if (today >= weeks[i].start && today <= weeks[i].end) return i;
+  const isCurrentMonth = (selMonth === today.getMonth()+1 && selYear === today.getFullYear());
+  if (isCurrentMonth) {
+    for (let i=0;i<weeks.length;i++) {
+      if (today >= weeks[i].start && today <= weeks[i].end) return i;
+    }
   }
-  return weeks.length-1;
+  // Past month — return last week
+  return weeks.length > 0 ? weeks.length - 1 : 0;
+}
+
+// ── MONTH / YEAR FILTER ──
+function populateMonthYear() {
+  const mSel = document.getElementById('se-sel-month');
+  const ySel = document.getElementById('se-sel-year');
+  if (!mSel || !ySel) return;
+  mSel.innerHTML = '';
+  ySel.innerHTML = '';
+  MONTHS.forEach((m, i) => {
+    const o = document.createElement('option');
+    o.value = i + 1; o.textContent = m;
+    if (i + 1 === selMonth) o.selected = true;
+    mSel.appendChild(o);
+  });
+  const cy = new Date().getFullYear();
+  for (let y = 2026; y <= cy; y++) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    if (y === selYear) o.selected = true;
+    ySel.appendChild(o);
+  }
+}
+function onSEFilterChange() {
+  selMonth = parseInt(document.getElementById('se-sel-month').value);
+  selYear  = parseInt(document.getElementById('se-sel-year').value);
+  weeks    = buildWeeks();
+  selWeek  = getCurrentWeekIdx();
+  updateNavPill();
+  renderWeekRow();
+  renderProdRows();
+  renderMeetRows();
+  renderCountryRows();
+  resetWizard();
+  fetchSubmissionFromSheet(weeks[selWeek]);
 }
 
 // ── SESSION DATA ──
@@ -1743,9 +1822,12 @@ function showView(v) {
 
 // ── SE INIT ──
 function initSE() {
+  selMonth = new Date().getMonth() + 1;
+  selYear  = new Date().getFullYear();
   weeks = buildWeeks();
   selWeek = getCurrentWeekIdx();
   document.getElementById('nav-user-label').textContent = user;
+  populateMonthYear();
   updateNavPill();
   renderWeekRow();
   renderProdRows();
